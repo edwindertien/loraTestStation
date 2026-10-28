@@ -1,0 +1,9 @@
+RX_OK={"ev":"rx","up_ms":12345,"ok":true,"err":0,"rssi":-4.0,"snr":12.8,"len":90,"hex":"3C53454E36362D30313E7B2274223A31392E39322C227268223A36312E392C22636F32223A3733332C22766F63223A39392C226E6F78223A312C22706D3235223A322E302C22706D3130223A332E312C22706D31223A312E307D","freq":868.100,"bw":125,"sf":7,"cr":7,"sync":"0x12"}
+RX_FAIL={"ev":"rx","up_ms":20000,"ok":false,"err":-7,"rssi":-19.0,"snr":-0.5,"freq":868.100,"bw":125,"sf":7,"cr":7,"sync":"0x12"}
+GET={"freq":868.100,"bw":125,"sf":7,"cr":7,"sync":"0x12","pre":8,"state":"defaults"}
+SET_OK=ok freq=868.100 bw=125 sf=9 cr=7 sync=0x12 pre=8
+SET_ERR=err spreading factor must be 5-12
+JSON_ON=ok json=on
+SAVE=ok saved
+DEFAULTS=ok defaults restored, saved settings cleared: freq=868.100 bw=125 sf=7 cr=7 sync=0x12 pre=8
+UNKNOWN=unknown command 'bogus' - try 'help'

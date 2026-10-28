@@ -10,6 +10,9 @@ SX1262 radio = new Module(PIN_LORA_NSS, PIN_LORA_DIO1, RADIOLIB_NC, PIN_LORA_BUS
 static volatile bool receivedFlag = false;
 static void IRAM_ATTR setFlag(void) { receivedFlag = true; }
 
+// What the radio is actually running with right now - see lora_radio.h.
+static LoraConfig activeCfg;
+
 static void resetAndEnableRadio() {
     uint8_t pins = (1 << PI4IO_PIN_LORA_RESET) |
                    (1 << PI4IO_PIN_RF_SWITCH) |
@@ -33,7 +36,8 @@ static void resetAndEnableRadio() {
                                                // real signal, so we still set it)
 }
 
-bool loraRadioBegin() {
+bool loraRadioBegin(const LoraConfig &cfg) {
+    activeCfg = cfg; // the settings we intend to run with, even if begin() below fails
     // Deliberately does NOT call M5.begin() - see pi4io_expander.h for
     // why. Brings up I2C itself via pi4io.begin().
     Serial.println("loraRadioBegin: initializing expander directly (no M5Unified in this path)...");
@@ -68,9 +72,9 @@ bool loraRadioBegin() {
     // frequency, bandwidth, spreading factor, coding rate, sync word,
     // power, preamble length, TCXO voltage, useRegulatorLDO - order and
     // the last two values confirmed against M5Stack's own example.
-    int state = radio.begin(LORA_FREQ_MHZ, LORA_BW_KHZ, LORA_SF, LORA_CR,
-                             LORA_SYNC_WORD, LORA_TX_POWER_DBM,
-                             LORA_PREAMBLE_LEN, LORA_TCXO_VOLTAGE,
+    int state = radio.begin(cfg.freqMHz, cfg.bwKHz, (uint8_t)cfg.sf, (uint8_t)cfg.cr,
+                             (uint8_t)cfg.syncWord, LORA_TX_POWER_DBM,
+                             (uint16_t)cfg.preamble, LORA_TCXO_VOLTAGE,
                              /* useRegulatorLDO = */ true);
     Serial.printf("loraRadioBegin: radio.begin() returned, code %d\n", state);
     if (state != RADIOLIB_ERR_NONE) {
@@ -78,6 +82,44 @@ bool loraRadioBegin() {
         return false;
     }
     return true;
+}
+
+const LoraConfig &loraActiveConfig() { return activeCfg; }
+
+// Applies every PHY setting to the live radio. Order matters in one place:
+// bandwidth -> spreading factor -> coding rate, because each of those
+// re-sends the modulation parameters and RadioLib recomputes low-data-rate
+// optimisation (needed at SF11/12 with narrow bandwidths) on every one of
+// them - so ending on the coding-rate call guarantees the final LDRO setting
+// is derived from the FINAL SF and BW, not an intermediate pair.
+static int applyToRadio(const LoraConfig &c) {
+    int st = radio.standby();
+    if (st != RADIOLIB_ERR_NONE) return st;
+    st = radio.setFrequency(c.freqMHz);
+    if (st != RADIOLIB_ERR_NONE) return st;
+    st = radio.setBandwidth(c.bwKHz);
+    if (st != RADIOLIB_ERR_NONE) return st;
+    st = radio.setSpreadingFactor((uint8_t)c.sf);
+    if (st != RADIOLIB_ERR_NONE) return st;
+    st = radio.setCodingRate((uint8_t)c.cr);
+    if (st != RADIOLIB_ERR_NONE) return st;
+    st = radio.setSyncWord((uint8_t)c.syncWord);
+    if (st != RADIOLIB_ERR_NONE) return st;
+    return radio.setPreambleLength((size_t)c.preamble);
+}
+
+int loraApplyConfig(const LoraConfig &c) {
+    int st = applyToRadio(c);
+    if (st == RADIOLIB_ERR_NONE) {
+        activeCfg = c;
+    } else {
+        applyToRadio(activeCfg); // best-effort rollback: a rejected value must not leave the radio half-configured
+    }
+    // applyToRadio() leaves the chip in standby, so always re-arm receive,
+    // and drop any flag raised by traffic under the old settings.
+    receivedFlag = false;
+    int rx = radio.startReceive();
+    return (st != RADIOLIB_ERR_NONE) ? st : rx;
 }
 
 bool loraStartListening() {

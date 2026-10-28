@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>c6l monitor</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>c6l monitor</h1>
+  <div class="conn">
+    <span id="conn-pill" class="pill pill-off">disconnected</span>
+    <input id="port-input" list="port-options" placeholder="serial port or socket://host:port" size="34" autocomplete="off">
+    <datalist id="port-options"></datalist>
+    <button id="btn-rescan" type="button" title="Rescan serial ports">&#8635;</button>
+    <button id="btn-connect" type="button" class="primary">Connect</button>
+    <button id="btn-disconnect" type="button">Disconnect</button>
+  </div>
+</header>
+<div id="banner" class="banner" hidden></div>
+
+<nav class="tabs" role="tablist">
+  <button type="button" role="tab" data-tab="live" class="active">Live</button>
+  <button type="button" role="tab" data-tab="settings">Settings</button>
+  <button type="button" role="tab" data-tab="log">Log</button>
+  <button type="button" role="tab" data-tab="reports">Reports</button>
+  <button type="button" role="tab" data-tab="graphs">Graphs</button>
+</nav>
+
+<main>
+  <!-- ================= LIVE ================= -->
+  <section id="tab-live" class="pane active" role="tabpanel">
+    <div class="cards">
+      <div class="card"><h3>Radio</h3><div id="live-cfg" class="big">&ndash;</div><div id="live-cfg-state" class="muted"></div></div>
+      <div class="card"><h3>Device</h3><div id="live-alive" class="big">&ndash;</div><div id="live-boots" class="muted"></div></div>
+      <div class="card"><h3>This session</h3><div id="live-session" class="big">&ndash;</div><div class="muted">decoded / failed</div></div>
+      <div class="card"><h3>Stored</h3><div id="live-db" class="big">&ndash;</div><div class="muted">packets in the database</div></div>
+    </div>
+
+    <div id="last-card" class="card wide" hidden>
+      <h3>Last decoded packet <span id="last-age" class="muted"></span></h3>
+      <div id="last-head" class="last-head"></div>
+      <div id="last-fields" class="tiles"></div>
+      <div id="last-text" class="mono small muted"></div>
+    </div>
+
+    <h2>Latest packets</h2>
+    <div class="tablewrap">
+      <table id="live-table" class="grid">
+        <thead><tr><th>Time</th><th>Node</th><th>RSSI</th><th>SNR</th><th>Len</th><th>Data</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p id="live-empty" class="muted" hidden>No packets yet. If the device is connected, they appear here as they are received.</p>
+
+    <h2>Device console</h2>
+    <pre id="console" class="console" aria-live="off"></pre>
+    <form id="send-form" class="inline">
+      <input id="send-line" placeholder="send a line to the device, e.g. stats" size="40" autocomplete="off">
+      <button type="submit">Send</button>
+      <span class="muted">Replies appear in the console above.</span>
+    </form>
+  </section>
+
+  <!-- ================= SETTINGS ================= -->
+  <section id="tab-settings" class="pane" role="tabpanel">
+    <p class="muted">These must <strong>exactly</strong> match whatever is transmitting &mdash; a wrong sync word or bandwidth gives total silence, a wrong spreading factor or coding rate gives CRC failures. Changes apply immediately; any packet being received at that instant is lost.</p>
+    <div class="cols">
+      <form id="cfg-form" class="card form">
+        <h3>Radio settings</h3>
+        <label>Frequency (MHz)
+          <span class="row"><input id="f-freq" type="number" step="0.001" min="150" max="960">
+          <select id="f-ch" title="EU868 channel plan"><option value="">channel&hellip;</option></select></span>
+        </label>
+        <label>Bandwidth (kHz)
+          <select id="f-bw"></select>
+        </label>
+        <label>Spreading factor
+          <select id="f-sf"></select>
+        </label>
+        <label>Coding rate
+          <select id="f-cr"></select>
+        </label>
+        <label>Sync word (hex)
+          <span class="row"><input id="f-sync" size="6" placeholder="12" autocomplete="off">
+          <button type="button" class="small" data-sync="12">private 0x12</button>
+          <button type="button" class="small" data-sync="34">LoRaWAN 0x34</button></span>
+        </label>
+        <label>Preamble (symbols)
+          <input id="f-pre" type="number" min="6" max="65535">
+        </label>
+        <div class="row">
+          <button type="submit" class="primary" id="btn-apply">Apply to device</button>
+          <button type="button" id="btn-form-reset">Reset form</button>
+        </div>
+        <div id="cfg-result" class="result" aria-live="polite"></div>
+      </form>
+
+      <div class="stack">
+        <div class="card">
+          <h3>Device memory</h3>
+          <p>State: <strong id="cfg-state">&ndash;</strong></p>
+          <p class="muted"><em>defaults</em> = the values compiled into the firmware, <em>saved</em> = stored on the device and used at every boot, <em>modified</em> = changed since, lost on reboot.</p>
+          <div class="row">
+            <button type="button" id="btn-save">Save to device</button>
+            <button type="button" id="btn-defaults">Restore defaults</button>
+          </div>
+          <div id="mem-result" class="result" aria-live="polite"></div>
+        </div>
+        <div class="card">
+          <h3>Presets</h3>
+          <p class="muted">Presets live in this app (not on the device). Loading one only fills the form &mdash; press Apply to use it.</p>
+          <div class="row">
+            <select id="preset-select"></select>
+            <button type="button" id="btn-preset-load">Load</button>
+            <button type="button" id="btn-preset-delete">Delete</button>
+          </div>
+          <div class="row">
+            <input id="preset-name" placeholder="name for the current form values" size="30" autocomplete="off">
+            <button type="button" id="btn-preset-save">Save preset</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= LOG ================= -->
+  <section id="tab-log" class="pane" role="tabpanel">
+    <form id="log-filter" class="filters">
+      <label>From <input id="l-from" type="datetime-local"></label>
+      <label>To <input id="l-to" type="datetime-local"></label>
+      <label>Node <select id="l-node"></select></label>
+      <label>Status
+        <select id="l-ok"><option value="">any</option><option value="ok">decoded</option><option value="fail">failed</option></select>
+      </label>
+      <label>Search <input id="l-q" placeholder="text, hex or node" size="18" autocomplete="off"></label>
+      <label>Per page
+        <select id="l-limit"><option>25</option><option selected>50</option><option>100</option><option>250</option></select>
+      </label>
+      <button type="submit" class="primary">Apply</button>
+      <button type="button" id="btn-log-reset">Reset</button>
+    </form>
+    <div class="row between">
+      <div id="log-count" class="muted"></div>
+      <div class="row">
+        <a id="exp-csv" class="btn" href="#">Export CSV</a>
+        <a id="exp-json" class="btn" href="#">Export JSON</a>
+        <a id="exp-devlog" class="btn" href="/api/log/device">Raw device log</a>
+      </div>
+    </div>
+    <div class="tablewrap">
+      <table id="log-table" class="grid">
+        <thead><tr><th>Time</th><th>Node</th><th>Status</th><th>RSSI</th><th>SNR</th><th>Len</th><th>Rx settings</th><th>Data</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="row">
+      <button type="button" id="btn-prev">&laquo; Newer</button>
+      <button type="button" id="btn-next">Older &raquo;</button>
+    </div>
+    <details class="danger">
+      <summary>Delete data</summary>
+      <div class="row">
+        <button type="button" id="btn-del-old">Delete packets older than</button>
+        <input id="del-days" type="number" min="1" value="30" style="width:5em"> days
+        <button type="button" id="btn-del-all" class="warn">Delete everything</button>
+      </div>
+      <div id="del-result" class="result"></div>
+    </details>
+  </section>
+
+  <!-- ================= REPORTS ================= -->
+  <section id="tab-reports" class="pane" role="tabpanel">
+    <div class="filters">
+      <label>Period
+        <select id="r-range">
+          <option value="3600">last hour</option><option value="86400" selected>last 24 hours</option>
+          <option value="604800">last 7 days</option><option value="2592000">last 30 days</option>
+          <option value="all">everything</option><option value="custom">custom&hellip;</option>
+        </select>
+      </label>
+      <label class="custom-only" hidden>From <input id="r-from" type="datetime-local"></label>
+      <label class="custom-only" hidden>To <input id="r-to" type="datetime-local"></label>
+      <button type="button" id="btn-report" class="primary">Refresh</button>
+      <a id="exp-report" class="btn" href="#">Download CSV</a>
+    </div>
+    <div id="report-body" class="muted">Press Refresh.</div>
+  </section>
+
+  <!-- ================= GRAPHS ================= -->
+  <section id="tab-graphs" class="pane" role="tabpanel">
+    <div class="filters">
+      <label>Period
+        <select id="g-range">
+          <option value="3600">last hour</option><option value="21600">last 6 hours</option>
+          <option value="86400" selected>last 24 hours</option><option value="604800">last 7 days</option>
+          <option value="all">everything</option><option value="custom">custom&hellip;</option>
+        </select>
+      </label>
+      <label class="custom-only" hidden>From <input id="g-from" type="datetime-local"></label>
+      <label class="custom-only" hidden>To <input id="g-to" type="datetime-local"></label>
+      <label>Resolution
+        <select id="g-bucket">
+          <option value="">auto (raw points when they fit)</option><option value="60">1 min</option>
+          <option value="300">5 min</option><option value="900">15 min</option><option value="3600">1 hour</option>
+          <option value="86400">1 day</option>
+        </select>
+      </label>
+      <label>Style <select id="g-type"><option value="line">line</option><option value="points">points</option></select></label>
+      <label class="check"><input id="g-okonly" type="checkbox" checked> RSSI/SNR of decoded packets only</label>
+      <label class="check"><input id="g-auto" type="checkbox"> auto-refresh (30 s)</label>
+    </div>
+
+    <div class="card">
+      <h3>Series</h3>
+      <div id="series-list"></div>
+      <div class="row">
+        <button type="button" id="btn-add-series">+ Add series</button>
+        <button type="button" id="btn-plot" class="primary">Plot</button>
+        <button type="button" id="btn-png">Download PNG</button>
+      </div>
+    </div>
+
+    <div class="chartbox"><canvas id="graph-canvas"></canvas></div>
+    <p id="graph-note" class="muted"></p>
+
+    <div class="card">
+      <h3>Saved graphs</h3>
+      <div class="row">
+        <select id="graph-select"></select>
+        <button type="button" id="btn-graph-load">Load</button>
+        <button type="button" id="btn-graph-delete">Delete</button>
+        <input id="graph-name" placeholder="name for the current graph" size="28" autocomplete="off">
+        <button type="button" id="btn-graph-save">Save graph</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="/static/vendor/chart.umd.min.js"></script>
+<script src="/static/vendor/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

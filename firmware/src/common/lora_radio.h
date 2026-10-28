@@ -1,5 +1,6 @@
 #pragma once
 #include <RadioLib.h>
+#include "lora_config.h"
 
 // Shared SX1262 bring-up for both roles. Deliberately does NOT use
 // M5.begin()/M5Unified at all - see pi4io_expander.h for why (confirmed
@@ -9,10 +10,25 @@
 
 extern SX1262 radio;
 
-// Full bring-up: pulses reset and enables the RF switch/LNA via the IO
-// expander, then brings up the SX1262 over RadioLib. Returns false (with a
-// Serial message) if the radio doesn't respond.
-bool loraRadioBegin();
+// Full bring-up: enables the RF switch/LNA and releases reset via the IO
+// expander, then brings up the SX1262 over RadioLib with the given PHY
+// settings. Returns false (with a Serial message) if the radio doesn't
+// respond. The no-argument form uses board_config.h's compile-time defaults.
+bool loraRadioBegin(const LoraConfig &cfg);
+inline bool loraRadioBegin() { return loraRadioBegin(loraConfigDefaults()); }
+
+// The PHY settings the radio is currently running with. Single source of
+// truth for the CLI/OLED - never read board_config.h's LORA_* macros for
+// "what is the radio doing right now", they're only the boot defaults.
+const LoraConfig &loraActiveConfig();
+
+// Changes the PHY settings on a live radio: standby, apply, re-arm receive.
+// All-or-nothing - if RadioLib rejects any value, the previous settings are
+// restored and the RadioLib error code is returned (RADIOLIB_ERR_NONE on
+// success). Callers should validate with loraConfigSane() first; this is the
+// backstop for anything RadioLib itself still refuses. Any packet being
+// received at that instant is lost.
+int loraApplyConfig(const LoraConfig &cfg);
 
 // Starts continuous, non-blocking receive (interrupt-driven).
 bool loraStartListening();

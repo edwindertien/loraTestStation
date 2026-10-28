@@ -1,0 +1,6 @@
+{
+  "name": "c6lmon-ui-smoke",
+  "private": true,
+  "description": "Dev-only: jsdom for the UI smoke test (tests/ui/run_smoke.py). Not needed to run the monitor.",
+  "devDependencies": { "jsdom": "^24.1.0" }
+}

@@ -12,3 +12,10 @@ pi/venv/
 
 # OS
 .DS_Store
+
+# monitor app
+monitor/venv/
+monitor/data/
+monitor/tests/ui/node_modules/
+monitor/tests/ui/package-lock.json
+.pytest_cache/

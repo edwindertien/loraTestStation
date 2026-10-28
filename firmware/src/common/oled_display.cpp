@@ -54,8 +54,12 @@ void oledShowStatus(const char *role, float freqMHz, int sf, uint32_t rxOkCount,
     display.setTextSize(1);
     display.setCursor(0, 0);
     display.println(role);
-    display.printf("%.1fMHz SF%d\n", freqMHz, sf);
-    display.printf("OK:%lu F:%lu\n", (unsigned long)rxOkCount, (unsigned long)rxFailCount);
+    // 3 decimals, no space: "868.525MHz" is exactly 10 chars = 60px, which
+    // fits the 64px panel; one decimal would show 868.525 as "868.5".
+    display.printf("%.3fMHz\n", freqMHz);
+    display.printf("SF%d\n", sf);
+    display.printf("OK: %lu\n", (unsigned long)rxOkCount);
+    display.printf("Fail: %lu\n", (unsigned long)rxFailCount);
     display.display();
 }
 
